@@ -1,5 +1,6 @@
 package com.shapegames.common.errors.model
 
+import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonSubTypes
@@ -19,7 +20,9 @@ private fun nowInUtc(): OffsetDateTime = OffsetDateTime.now().withOffsetSameInst
 @JsonSubTypes(
     value = [
         Type(value = EmptyErrorMessage::class, name = "empty"),
-        Type(value = SimpleTextErrorMessage::class, name = "simple_message")
+        Type(value = SimpleTextErrorMessage::class, name = "simple_message"),
+        Type(value = ValidationErrorMessage::class, name = "validation_error"),
+        Type(value = ServiceCallErrorMessage::class, name = "service_call")
     ]
 )
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -32,7 +35,7 @@ sealed class BaseErrorMessage {
  * When the is no additional error information besides the error code.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-data class EmptyErrorMessage(
+data class EmptyErrorMessage @JsonCreator constructor(
     override val timestamp: OffsetDateTime = nowInUtc(),
     override val errorCode: String
 ) : BaseErrorMessage()
@@ -41,8 +44,38 @@ data class EmptyErrorMessage(
  * A simple message.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-data class SimpleTextErrorMessage(
+data class SimpleTextErrorMessage @JsonCreator constructor(
     override val timestamp: OffsetDateTime = nowInUtc(),
     override val errorCode: String,
     @field:JsonProperty("message") val message: String
+) : BaseErrorMessage()
+
+/**
+ * Validation errors.
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+data class ValidationErrorMessage @JsonCreator constructor(
+    override val timestamp: OffsetDateTime = nowInUtc(),
+    override val errorCode: String = CommonErrorCodes.VALIDATION_ERRORS,
+    val message: String? = null,
+    val cause: String? = null, // name of the exception that is the cause of the errors
+    val errors: List<ValidationError>
+) : BaseErrorMessage() {
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    data class ValidationError @JsonCreator constructor(
+        val field: String,
+        val code: String? = null,
+        val type: String? = null,
+        val message: String
+    )
+}
+
+/**
+ * Calls to internal service.
+ */
+data class ServiceCallErrorMessage(
+    override val timestamp: OffsetDateTime = nowInUtc(),
+    override val errorCode: String = CommonErrorCodes.VALIDATION_ERRORS,
+    val serviceName: String,
+    val nestedError: BaseErrorMessage
 ) : BaseErrorMessage()
